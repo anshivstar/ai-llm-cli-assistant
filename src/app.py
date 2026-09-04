@@ -5,12 +5,20 @@ MODEL = "gemma4"
 
 
 def ask_llm(messages: list[dict]) -> str:
-    response = ollama.chat(
+    stream = ollama.chat(
         model=MODEL,
         messages=messages,
+        stream=True,
     )
 
-    return response["message"]["content"]
+    full_response = ""
+
+    for chunk in stream:
+        text = chunk["message"]["content"]
+        print(text, end="", flush=True)
+        full_response += text
+
+    return full_response
 
 
 def main():
@@ -26,12 +34,15 @@ def main():
             print("Goodbye!")
             break
 
-
-
         if not question.strip():
             continue
 
-        messages.append({"role": "user", "content": question})
+        messages.append({
+            "role": "user",
+            "content": question,
+        })
+
+        print("\nAI: ", end="")
 
         answer = ask_llm(messages)
 
@@ -40,8 +51,7 @@ def main():
             "content": answer,
         })
 
-
-        print(f"\nAI: {answer}\n")
+        print()
 
 
 if __name__ == "__main__":
