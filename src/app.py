@@ -1,4 +1,5 @@
 import ollama
+from llm import analyze_question
 
 
 MODEL = "gemma4"
@@ -23,7 +24,8 @@ def ask_llm(messages: list[dict]) -> str:
 
 def main():
     print("AI CLI Assistant")
-    print("Type 'exit' to quit.\n")
+    print("Type 'exit' to quit.")
+    print("Type '/analyze <question>' for structured output.\n")
 
     messages = []
 
@@ -37,6 +39,20 @@ def main():
         if not question.strip():
             continue
 
+        # V4: Structured Output
+        if question.startswith("/analyze "):
+            analyze_input = question[len("/analyze "):]
+
+            result = analyze_question(analyze_input)
+
+            print("\nAI:")
+            print(f"Topic: {result['topic']}")
+            print(f"Difficulty: {result['difficulty']}")
+            print(f"Summary: {result['summary']}\n")
+
+            continue
+
+        # V2 + V3: Conversation History + Streaming
         messages.append({
             "role": "user",
             "content": question,
