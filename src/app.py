@@ -1,25 +1,87 @@
 import ollama
+
 from llm import analyze_question
+from tools import calculate
 
 
 MODEL = "gemma4"
 
 
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate",
+            "description": "Perform a basic arithmetic calculation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "a": {
+                        "type": "number",
+                        "description": "First number",
+                    },
+                    "b": {
+                        "type": "number",
+                        "description": "Second number",
+                    },
+                    "operation": {
+                        "type": "string",
+                        "enum": [
+                            "add",
+                            "subtract",
+                            "multiply",
+                            "divide",
+                        ],
+                        "description": "Mathematical operation",
+                    },
+                },
+                "required": ["a", "b", "operation"],
+            },
+        },
+    }
+]
+
+
 def ask_llm(messages: list[dict]) -> str:
-    stream = ollama.chat(
+    response = ollama.chat(
         model=MODEL,
         messages=messages,
-        stream=True,
+        tools=TOOLS,
     )
 
-    full_response = ""
+    tool_calls = response["message"].get("tool_calls", [])
 
-    for chunk in stream:
-        text = chunk["message"]["content"]
-        print(text, end="", flush=True)
-        full_response += text
+    # No tool needed
+    if not tool_calls:
+        return response["message"]["content"]
 
-    return full_response
+    # Add the assistant's tool-call message to conversation
+    messages.append(response["message"])
+
+    # Execute requested tools
+    for tool_call in tool_calls:
+        function_name = tool_call["function"]["name"]
+        arguments = tool_call["function"]["arguments"]
+
+        if function_name == "calculate":
+            result = calculate(
+                arguments["a"],
+                arguments["b"],
+                arguments["operation"],
+            )
+
+            messages.append({
+                "role": "tool",
+                "content": str(result),
+            })
+
+    # Ask LLM to produce final answer
+    final_response = ollama.chat(
+        model=MODEL,
+        messages=messages,
+    )
+
+    return final_response["message"]["content"]
 
 
 def main():
@@ -52,7 +114,7 @@ def main():
 
             continue
 
-        # V2 + V3: Conversation History + Streaming
+        # V2: Conversation History
         messages.append({
             "role": "user",
             "content": question,
@@ -60,7 +122,10 @@ def main():
 
         print("\nAI: ", end="")
 
+        # V5: Tool Calling
         answer = ask_llm(messages)
+
+        print(answer)
 
         messages.append({
             "role": "assistant",
